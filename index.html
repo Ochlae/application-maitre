@@ -4,14 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- =====================================================
-     VERSION MAÎTRE - APPLICATION INSCRIPTION POKER CLUB
-     Il suffit de modifier la zone CONFIGURATION DU CLUB
-     ===================================================== -->
+<title>Application maître inscriptions clubs</title>
 
-<title>Inscription Poker Club</title>
-
-<!-- Icônes et installation smartphone -->
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
@@ -66,11 +60,11 @@
   header p {
     margin: 8px 0 0;
     font-size: 15px;
-    opacity: 0.9;
+    opacity: 0.95;
   }
 
   main {
-    max-width: 900px;
+    max-width: 950px;
     margin: 24px auto;
     padding: 0 16px 40px;
   }
@@ -94,7 +88,7 @@
     margin-bottom: 6px;
   }
 
-  input, select, textarea {
+  input, textarea {
     width: 100%;
     padding: 12px;
     border-radius: 10px;
@@ -126,6 +120,11 @@
   .btn-danger {
     background: #7f1d1d;
     color: white;
+  }
+
+  .btn-neutre {
+    background: #e5e7eb;
+    color: #111827;
   }
 
   .ligne-joueur {
@@ -169,9 +168,20 @@
     color: var(--couleur-secondaire);
   }
 
+  .grille-admin {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
   .message {
     margin-top: 10px;
     font-weight: bold;
+  }
+
+  .petit-texte {
+    color: #6b7280;
+    font-size: 14px;
   }
 
   footer {
@@ -219,6 +229,7 @@
 
   <section class="carte">
     <h2>Inscrire un joueur</h2>
+
     <label for="nomJoueur">Nom ou pseudo</label>
     <input id="nomJoueur" type="text" placeholder="Exemple : Claudius">
 
@@ -250,24 +261,56 @@
 
   <section class="carte">
     <h2>Administration</h2>
+
     <label for="codeAdmin">Code admin</label>
     <input id="codeAdmin" type="password" placeholder="Code administrateur">
 
+    <h3>Modifier le tournoi</h3>
+    <div class="grille-admin">
+      <div>
+        <label for="adminDateTournoi">Date du tournoi</label>
+        <input id="adminDateTournoi" type="text" placeholder="Exemple : Vendredi 13 juin 2026">
+      </div>
+
+      <div>
+        <label for="adminHeureTournoi">Heure</label>
+        <input id="adminHeureTournoi" type="text" placeholder="Exemple : 21h00">
+      </div>
+
+      <div>
+        <label for="adminLieuTournoi">Lieu</label>
+        <input id="adminLieuTournoi" type="text" placeholder="Exemple : Salle du club">
+      </div>
+
+      <div>
+        <label for="adminPlacesMaximum">Nombre de places</label>
+        <input id="adminPlacesMaximum" type="number" min="1" placeholder="Exemple : 64">
+      </div>
+    </div>
+
+    <button class="btn-principal" onclick="sauvegarderParametresTournoi()">Enregistrer les paramètres</button>
+    <button class="btn-neutre" onclick="remplirChampsAdmin()">Recharger les valeurs actuelles</button>
+
+    <hr>
+
+    <h3>Gestion de la liste</h3>
     <button class="btn-secondaire" onclick="exporterListe()">Exporter la liste</button>
-    <button class="btn-danger" onclick="viderListe()">Vider la liste</button>
+    <button class="btn-danger" onclick="viderListe()">Vider toute la liste</button>
+
+    <p class="petit-texte">Les changements sont synchronisés entre le PC et le smartphone.</p>
   </section>
 
 </main>
 
 <footer>
-  Application d'inscription - Version maître Poker Club
+  Application d'inscription synchronisée - Claudius Poker Applications
 </footer>
 
 <script>
 /* =====================================================
-   CONFIGURATION DU CLUB
-   C'EST ICI QU'IL FAUT MODIFIER POUR CHAQUE CLUB
+   FIREBASE
    ===================================================== */
+
 const firebaseConfig = {
   apiKey: "AIzaSyDANUdOf2ui5gfuvdOMPfOX_SVaEcoT7-8",
   authDomain: "pexiora-poker-inscriptrions.firebaseapp.com",
@@ -280,6 +323,12 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+/* =====================================================
+   CONFIGURATION DE BASE DU CLUB
+   C'EST ICI QU'IL FAUT MODIFIER POUR CHAQUE CLUB
+   ===================================================== */
+
 const CONFIG_CLUB = {
   nomClub: "NOM DU CLUB",
   sousTitre: "Inscriptions au tournoi",
@@ -289,35 +338,74 @@ const CONFIG_CLUB = {
   placesMaximum: 64,
   codeAdmin: "club2026",
 
-  // Important : changer ce nom pour chaque club
-  // Exemple : joueurs_pexiora, joueurs_durfort, joueurs_bram
-  stockageJoueurs: "joueurs_nom_du_club",
+  // Important : mettre un nom différent pour chaque club
+  // Exemples : pexiora, durfort, bram, modele
+  identifiantClub: "modele",
 
-  // Couleurs du club
   couleurPrincipale: "#111827",
   couleurSecondaire: "#b91c1c"
 };
 
 /* =====================================================
-   INITIALISATION
+   CHEMINS FIREBASE
+   ===================================================== */
+
+const CHEMIN_CLUB = "clubs/" + CONFIG_CLUB.identifiantClub;
+const CHEMIN_JOUEURS = CHEMIN_CLUB + "/joueurs";
+const CHEMIN_PARAMETRES = CHEMIN_CLUB + "/parametres";
+
+let joueurs = [];
+let parametresTournoi = {
+  dateTournoi: CONFIG_CLUB.dateTournoi,
+  heureTournoi: CONFIG_CLUB.heureTournoi,
+  lieuTournoi: CONFIG_CLUB.lieuTournoi,
+  placesMaximum: CONFIG_CLUB.placesMaximum
+};
+
+/* =====================================================
+   INITIALISATION AFFICHAGE
    ===================================================== */
 
 document.title = CONFIG_CLUB.nomClub + " - Inscription";
 document.getElementById("titreClub").textContent = CONFIG_CLUB.nomClub;
 document.getElementById("sousTitreClub").textContent = CONFIG_CLUB.sousTitre;
-document.getElementById("dateTournoi").textContent = CONFIG_CLUB.dateTournoi;
-document.getElementById("heureTournoi").textContent = CONFIG_CLUB.heureTournoi;
-document.getElementById("lieuTournoi").textContent = CONFIG_CLUB.lieuTournoi;
-document.getElementById("placesMax").textContent = CONFIG_CLUB.placesMaximum;
 
 document.documentElement.style.setProperty("--couleur-principale", CONFIG_CLUB.couleurPrincipale);
 document.documentElement.style.setProperty("--couleur-secondaire", CONFIG_CLUB.couleurSecondaire);
 
-const CHEMIN_DB = "clubs/" + CONFIG_CLUB.stockageJoueurs;
+/* =====================================================
+   SYNCHRONISATION DES PARAMÈTRES DU TOURNOI
+   ===================================================== */
 
-let joueurs = [];
+db.ref(CHEMIN_PARAMETRES).on("value", snapshot => {
+  const donnees = snapshot.val();
 
-db.ref(CHEMIN_DB).on("value", snapshot => {
+  if (donnees) {
+    parametresTournoi = {
+      dateTournoi: donnees.dateTournoi || CONFIG_CLUB.dateTournoi,
+      heureTournoi: donnees.heureTournoi || CONFIG_CLUB.heureTournoi,
+      lieuTournoi: donnees.lieuTournoi || CONFIG_CLUB.lieuTournoi,
+      placesMaximum: Number(donnees.placesMaximum) || CONFIG_CLUB.placesMaximum
+    };
+  } else {
+    parametresTournoi = {
+      dateTournoi: CONFIG_CLUB.dateTournoi,
+      heureTournoi: CONFIG_CLUB.heureTournoi,
+      lieuTournoi: CONFIG_CLUB.lieuTournoi,
+      placesMaximum: CONFIG_CLUB.placesMaximum
+    };
+  }
+
+  afficherParametresTournoi();
+  remplirChampsAdmin();
+  afficherJoueurs();
+});
+
+/* =====================================================
+   SYNCHRONISATION DES JOUEURS
+   ===================================================== */
+
+db.ref(CHEMIN_JOUEURS).on("value", snapshot => {
   joueurs = [];
 
   snapshot.forEach(child => {
@@ -331,10 +419,58 @@ db.ref(CHEMIN_DB).on("value", snapshot => {
 });
 
 /* =====================================================
-   FONCTIONS PRINCIPALES
+   FONCTIONS PARAMÈTRES TOURNOI
    ===================================================== */
 
+function afficherParametresTournoi() {
+  document.getElementById("dateTournoi").textContent = parametresTournoi.dateTournoi;
+  document.getElementById("heureTournoi").textContent = parametresTournoi.heureTournoi;
+  document.getElementById("lieuTournoi").textContent = parametresTournoi.lieuTournoi;
+  document.getElementById("placesMax").textContent = parametresTournoi.placesMaximum;
+}
 
+function remplirChampsAdmin() {
+  document.getElementById("adminDateTournoi").value = parametresTournoi.dateTournoi;
+  document.getElementById("adminHeureTournoi").value = parametresTournoi.heureTournoi;
+  document.getElementById("adminLieuTournoi").value = parametresTournoi.lieuTournoi;
+  document.getElementById("adminPlacesMaximum").value = parametresTournoi.placesMaximum;
+}
+
+function sauvegarderParametresTournoi() {
+  if (!verifierCodeAdmin()) return;
+
+  const nouvelleDate = document.getElementById("adminDateTournoi").value.trim();
+  const nouvelleHeure = document.getElementById("adminHeureTournoi").value.trim();
+  const nouveauLieu = document.getElementById("adminLieuTournoi").value.trim();
+  const nouvellesPlaces = Number(document.getElementById("adminPlacesMaximum").value);
+  const message = document.getElementById("message");
+
+  if (!nouvelleDate || !nouvelleHeure || !nouveauLieu || !nouvellesPlaces || nouvellesPlaces < 1) {
+    message.textContent = "Merci de remplir correctement la date, l'heure, le lieu et le nombre de places.";
+    message.style.color = "#b91c1c";
+    return;
+  }
+
+  if (nouvellesPlaces < joueurs.length) {
+    message.textContent = "Impossible : il y a déjà plus de joueurs inscrits que le nombre de places indiqué.";
+    message.style.color = "#b91c1c";
+    return;
+  }
+
+  db.ref(CHEMIN_PARAMETRES).set({
+    dateTournoi: nouvelleDate,
+    heureTournoi: nouvelleHeure,
+    lieuTournoi: nouveauLieu,
+    placesMaximum: nouvellesPlaces
+  });
+
+  message.textContent = "Paramètres du tournoi enregistrés.";
+  message.style.color = "#166534";
+}
+
+/* =====================================================
+   FONCTIONS JOUEURS
+   ===================================================== */
 
 function inscrireJoueur() {
   const nom = document.getElementById("nomJoueur").value.trim();
@@ -347,24 +483,25 @@ function inscrireJoueur() {
     return;
   }
 
-  if (joueurs.length >= CONFIG_CLUB.placesMaximum) {
+  if (joueurs.length >= parametresTournoi.placesMaximum) {
     message.textContent = "Le tournoi est complet.";
     message.style.color = "#b91c1c";
     return;
   }
 
   const dejaInscrit = joueurs.some(joueur => joueur.nom.toLowerCase() === nom.toLowerCase());
+
   if (dejaInscrit) {
     message.textContent = "Ce joueur est déjà inscrit.";
     message.style.color = "#b91c1c";
     return;
   }
 
- db.ref(CHEMIN_DB).push({
-  nom: nom,
-  commentaire: commentaire,
-  dateInscription: new Date().toLocaleString("fr-FR")
-});
+  db.ref(CHEMIN_JOUEURS).push({
+    nom: nom,
+    commentaire: commentaire,
+    dateInscription: new Date().toLocaleString("fr-FR")
+  });
 
   document.getElementById("nomJoueur").value = "";
   document.getElementById("commentaireJoueur").value = "";
@@ -376,15 +513,20 @@ function inscrireJoueur() {
 function desinscrireJoueur(id) {
   if (!verifierCodeAdmin()) return;
 
-  db.ref(CHEMIN_DB + "/" + id).remove();
+  db.ref(CHEMIN_JOUEURS + "/" + id).remove();
+
+  const message = document.getElementById("message");
+  message.textContent = "Joueur désinscrit.";
+  message.style.color = "#166534";
 }
+
 function afficherJoueurs() {
   const liste = document.getElementById("listeJoueurs");
   const nombreInscrits = document.getElementById("nombreInscrits");
   const nombrePlacesRestantes = document.getElementById("nombrePlacesRestantes");
 
   nombreInscrits.textContent = joueurs.length;
-  nombrePlacesRestantes.textContent = CONFIG_CLUB.placesMaximum - joueurs.length;
+  nombrePlacesRestantes.textContent = parametresTournoi.placesMaximum - joueurs.length;
 
   if (joueurs.length === 0) {
     liste.innerHTML = "<p>Aucun joueur inscrit pour le moment.</p>";
@@ -396,13 +538,16 @@ function afficherJoueurs() {
       <div>
         <strong>${index + 1}. ${echapperHTML(joueur.nom)}</strong>
         ${joueur.commentaire ? `<br><span class="badge">${echapperHTML(joueur.commentaire)}</span>` : ""}
-        <br><small>Inscrit le ${joueur.dateInscription}</small>
+        <br><small>Inscrit le ${joueur.dateInscription || "date non indiquée"}</small>
       </div>
       <button class="btn-danger" onclick="desinscrireJoueur('${joueur.id}')">Désinscrire</button>
     </div>
   `).join("");
 }
 
+/* =====================================================
+   FONCTIONS ADMINISTRATION
+   ===================================================== */
 
 function verifierCodeAdmin() {
   const code = document.getElementById("codeAdmin").value;
@@ -413,6 +558,7 @@ function verifierCodeAdmin() {
     message.style.color = "#b91c1c";
     return false;
   }
+
   return true;
 }
 
@@ -422,9 +568,7 @@ function viderListe() {
   const confirmation = confirm("Voulez-vous vraiment vider toute la liste des inscrits ?");
   if (!confirmation) return;
 
-  joueurs = [];
-  sauvegarderJoueurs();
-  afficherJoueurs();
+  db.ref(CHEMIN_JOUEURS).remove();
 
   const message = document.getElementById("message");
   message.textContent = "Liste vidée.";
@@ -435,8 +579,9 @@ function exporterListe() {
   if (!verifierCodeAdmin()) return;
 
   let contenu = `${CONFIG_CLUB.nomClub}\n`;
-  contenu += `Tournoi du ${CONFIG_CLUB.dateTournoi} à ${CONFIG_CLUB.heureTournoi}\n`;
-  contenu += `Lieu : ${CONFIG_CLUB.lieuTournoi}\n\n`;
+  contenu += `Tournoi du ${parametresTournoi.dateTournoi} à ${parametresTournoi.heureTournoi}\n`;
+  contenu += `Lieu : ${parametresTournoi.lieuTournoi}\n`;
+  contenu += `Places maximum : ${parametresTournoi.placesMaximum}\n\n`;
   contenu += `Liste des inscrits :\n\n`;
 
   joueurs.forEach((joueur, index) => {
@@ -452,8 +597,12 @@ function exporterListe() {
   lien.click();
 }
 
+/* =====================================================
+   SÉCURITÉ AFFICHAGE
+   ===================================================== */
+
 function echapperHTML(texte) {
-  return texte
+  return String(texte)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
