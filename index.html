@@ -16,6 +16,10 @@
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
 <style>
   :root {
     --couleur-principale: #111827;
@@ -264,7 +268,18 @@
    CONFIGURATION DU CLUB
    C'EST ICI QU'IL FAUT MODIFIER POUR CHAQUE CLUB
    ===================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDANUdOf2ui5gfuvdOMPfOX_SVaEcoT7-8",
+  authDomain: "pexiora-poker-inscriptrions.firebaseapp.com",
+  databaseURL: "https://pexiora-poker-inscriptrions-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "pexiora-poker-inscriptrions",
+  storageBucket: "pexiora-poker-inscriptrions.firebasestorage.app",
+  messagingSenderId: "663409779372",
+  appId: "1:663409779372:web:5aeb38e5cc677385887509"
+};
 
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 const CONFIG_CLUB = {
   nomClub: "NOM DU CLUB",
   sousTitre: "Inscriptions au tournoi",
@@ -298,21 +313,28 @@ document.getElementById("placesMax").textContent = CONFIG_CLUB.placesMaximum;
 document.documentElement.style.setProperty("--couleur-principale", CONFIG_CLUB.couleurPrincipale);
 document.documentElement.style.setProperty("--couleur-secondaire", CONFIG_CLUB.couleurSecondaire);
 
-let joueurs = chargerJoueurs();
-afficherJoueurs();
+const CHEMIN_DB = "clubs/" + CONFIG_CLUB.stockageJoueurs;
+
+let joueurs = [];
+
+db.ref(CHEMIN_DB).on("value", snapshot => {
+  joueurs = [];
+
+  snapshot.forEach(child => {
+    joueurs.push({
+      id: child.key,
+      ...child.val()
+    });
+  });
+
+  afficherJoueurs();
+});
 
 /* =====================================================
    FONCTIONS PRINCIPALES
    ===================================================== */
 
-function chargerJoueurs() {
-  const donnees = localStorage.getItem(CONFIG_CLUB.stockageJoueurs);
-  return donnees ? JSON.parse(donnees) : [];
-}
 
-function sauvegarderJoueurs() {
-  localStorage.setItem(CONFIG_CLUB.stockageJoueurs, JSON.stringify(joueurs));
-}
 
 function inscrireJoueur() {
   const nom = document.getElementById("nomJoueur").value.trim();
@@ -338,14 +360,11 @@ function inscrireJoueur() {
     return;
   }
 
-  joueurs.push({
-    nom: nom,
-    commentaire: commentaire,
-    dateInscription: new Date().toLocaleString("fr-FR")
-  });
-
-  sauvegarderJoueurs();
-  afficherJoueurs();
+ db.ref(CHEMIN_DB).push({
+  nom: nom,
+  commentaire: commentaire,
+  dateInscription: new Date().toLocaleString("fr-FR")
+});
 
   document.getElementById("nomJoueur").value = "";
   document.getElementById("commentaireJoueur").value = "";
